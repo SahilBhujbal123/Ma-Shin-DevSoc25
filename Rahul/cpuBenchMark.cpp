@@ -30,13 +30,9 @@
 
 using namespace std;
 using namespace chrono;
-
-// Dummy declaration to resolve std::byte ambiguity.
 std::byte myByte;
 
-// ==================== Global Configuration ====================
 struct Config {
-    // Problem sizes
     int gemm_size    = 512;
     int fft_size     = 1 << 18;   // 262144 points
     int sort_size    = 1 << 24;   // ~16.7 million elements
@@ -46,11 +42,9 @@ struct Config {
     int sieve_limit  = 10000000;  // for prime sieve benchmark
     int encrypt_size = 1 << 26;   // about 67 million bytes
 
-    // Benchmark parameters
     int warmup_runs   = 2;
     int measured_runs = 5;
 
-    // CPU settings
     bool multi_thread  = true;  // true = multi-core; false = single-core
     int  affinity_core = 0;      // pin main thread to this core (if supported)
 
@@ -339,19 +333,15 @@ double benchmark_encryption(int size) {
     return duration<double>(end - start).count();
 }
 
-// ==================== Main Function ====================
 int main() {
-    // Set core affinity.
     if (!set_core_affinity(config.affinity_core)) {
         cerr << "Warning: Unable to set core affinity.\n";
     } else {
         cout << "Core affinity set to core " << config.affinity_core << ".\n";
     }
 
-    // Attempt to force performance governor (Linux only).
     set_performance_governor();
 
-    // Start thermal monitor in a separate thread (only active on Linux).
 #ifndef _WIN32
     thread thermalThread(thermal_monitor, config.max_temp);
     thermalThread.detach();
