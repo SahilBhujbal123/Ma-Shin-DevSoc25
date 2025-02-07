@@ -4,18 +4,19 @@
 #include <random>
 #include <algorithm>
 #include <cmath>
-#include <cstring>    // For memcpy
+#include <cstring>
 #include <thread>
-#include <numeric>    // For std::accumulate
+#include <numeric>
 #include <future>
 #include <sstream>
-#include <iomanip>    // For std::setprecision
-
-// Simple SHA-256 implementation
+#include <iomanip>
 #include <array>
 #include <cstdint>
-#include <cstring>
+#include <fstream>
 
+// ---------------------
+// Simple SHA-256 Implementation
+// ---------------------
 namespace sha256 {
     constexpr std::array<uint32_t, 64> K = {
         0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
@@ -114,7 +115,8 @@ namespace sha256 {
         }
 
         while (buffer_len < 56) buffer[buffer_len++] = 0;
-        for (int i = 7; i >= 0; --i) buffer[buffer_len++] = (bitlen >> (i * 8)) & 0xff;
+        for (int i = 7; i >= 0; --i)
+            buffer[buffer_len++] = (bitlen >> (i * 8)) & 0xff;
         sha256_transform(state, buffer);
 
         for (int i = 0; i < 8; ++i) {
@@ -124,11 +126,11 @@ namespace sha256 {
             hash[i * 4 + 3] = state[i] & 0xff;
         }
     }
-}
+} // namespace sha256
 
-// ============================================================
-// Baseline reference values (arbitrary units)
-// ============================================================
+// ---------------------
+// Baseline Reference Values (Arbitrary)
+// ---------------------
 constexpr double BASELINE_MATRIX_GFLOPS    = 20.0;   // GFLOPS (higher is better)
 constexpr double BASELINE_SORT_TIME        = 0.5;    // seconds (lower is better)
 constexpr double BASELINE_PRIME_TIME       = 1.0;    // seconds (lower is better)
@@ -140,14 +142,16 @@ constexpr double BASELINE_IMAGE_TIME       = 0.3;    // seconds (lower is better
 constexpr double BASELINE_PHYSICS_TIME     = 0.5;    // seconds (lower is better)
 constexpr double BASELINE_ML_TIME          = 1.0;    // seconds (lower is better)
 
-// Number of iterations to run each benchmark.
+// Use a relative path so the file is saved in the same directory as the executable.
+const std::string RESULTS_PATH = "results.txt";
+
+// Number of iterations (runs) per benchmark.
 constexpr int NUM_RUNS = 10;
 
-// ============================================================
-// 1. Matrix Multiplication (Increased workload: 600x600 matrices)
-// ============================================================
+// ---------------------
+// Benchmark 1: Matrix Multiplication (600x600 matrices)
+// ---------------------
 double runMatrixMultiplicationTest() {
-    // Using larger matrices to push the CPU further.
     const int m = 600, n = 600, k = 600;
     std::vector<double> A(m * k);
     std::vector<double> B(k * n);
@@ -160,7 +164,6 @@ double runMatrixMultiplicationTest() {
     for (auto &b : B) b = dis(gen);
 
     auto start = std::chrono::high_resolution_clock::now();
-    // Triple nested loop matrix multiplication.
     for (int i = 0; i < m; i++) {
         for (int j = 0; j < n; j++) {
             double sum = 0.0;
@@ -171,10 +174,9 @@ double runMatrixMultiplicationTest() {
         }
     }
     auto finish = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed = finish - start;
-    // GFLOPS: 2 * m * n * k floating-point operations.
-    double gflops = (2.0 * m * n * k) / (elapsed.count() * 1e9);
-    return gflops; // Higher is better.
+    double elapsed = std::chrono::duration<double>(finish - start).count();
+    double gflops = (2.0 * m * n * k) / (elapsed * 1e9);
+    return gflops;
 }
 
 double runMatrixMultiplicationAggregate() {
@@ -187,11 +189,11 @@ double runMatrixMultiplicationAggregate() {
     return avgGFLOPS;
 }
 
-// ============================================================
-// 2. Sorting (Increased workload: 20 million integers)
-// ============================================================
+// ---------------------
+// Benchmark 2: Sorting (20 million integers)
+// ---------------------
 double runSortingTest() {
-    const size_t size = 20000000; // 20 million integers
+    const size_t size = 20000000;
     std::vector<int> arr(size);
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -202,8 +204,7 @@ double runSortingTest() {
     auto start = std::chrono::high_resolution_clock::now();
     std::sort(arr.begin(), arr.end());
     auto finish = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed = finish - start;
-    return elapsed.count(); // Lower is better.
+    return std::chrono::duration<double>(finish - start).count();
 }
 
 double runSortingAggregate() {
@@ -216,14 +217,14 @@ double runSortingAggregate() {
     return avgTime;
 }
 
-// ============================================================
-// 3. Prime Sieve (Increased workload: limit = 20 million)
-// ============================================================
+// ---------------------
+// Benchmark 3: Prime Sieve (limit = 20 million)
+// ---------------------
 double runPrimeSieveTest() {
-    int limit = 20000000; // 20 million
+    int limit = 20000000;
     std::vector<bool> isPrime(limit + 1, true);
-    if(limit >= 0) isPrime[0] = false;
-    if(limit >= 1) isPrime[1] = false;
+    if (limit >= 0) isPrime[0] = false;
+    if (limit >= 1) isPrime[1] = false;
 
     auto start = std::chrono::high_resolution_clock::now();
     for (int p = 2; p * p <= limit; p++) {
@@ -234,8 +235,7 @@ double runPrimeSieveTest() {
         }
     }
     auto finish = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed = finish - start;
-    return elapsed.count(); // Lower is better.
+    return std::chrono::duration<double>(finish - start).count();
 }
 
 double runPrimeSieveAggregate() {
@@ -248,19 +248,18 @@ double runPrimeSieveAggregate() {
     return avgTime;
 }
 
-// ============================================================
-// 4. Floating-Point Operations (Increased workload: 200 million iterations)
-// ============================================================
+// ---------------------
+// Benchmark 4: Floating-Point Operations (20 million iterations)
+// ---------------------
 double runFloatingPointOpsTest() {
-    size_t iterations = 20000000; // 20 million iterations
+    size_t iterations = 20000000;
     double result = 0.0;
     auto start = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i < iterations; i++) {
         result += std::sin(i) * std::cos(i);
     }
     auto finish = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed = finish - start;
-    return elapsed.count(); // Lower is better.
+    return std::chrono::duration<double>(finish - start).count();
 }
 
 double runFloatingPointOpsAggregate() {
@@ -273,11 +272,11 @@ double runFloatingPointOpsAggregate() {
     return avgTime;
 }
 
-// ============================================================
-// 5. Memory Copy Throughput (Increased workload: 200 MB buffer, 100 iterations)
-// ============================================================
+// ---------------------
+// Benchmark 5: Memory Copy Throughput (200 MB buffer, 100 iterations)
+// ---------------------
 double runMemoryCopyTest() {
-    size_t bufferSize = 200 * 1024 * 1024; // 200 MB
+    size_t bufferSize = 200 * 1024 * 1024;
     size_t iterations = 100;
     std::vector<char> src(bufferSize, 'a');
     std::vector<char> dest(bufferSize, 0);
@@ -287,10 +286,9 @@ double runMemoryCopyTest() {
         std::memcpy(dest.data(), src.data(), bufferSize);
     }
     auto finish = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed = finish - start;
-    // Throughput in GB/s.
-    double throughputGBps = (double(bufferSize) * iterations) / (elapsed.count() * 1e9);
-    return throughputGBps; // Higher is better.
+    double elapsed = std::chrono::duration<double>(finish - start).count();
+    double throughputGBps = (double(bufferSize) * iterations) / (elapsed * 1e9);
+    return throughputGBps;
 }
 
 double runMemoryCopyAggregate() {
@@ -303,11 +301,11 @@ double runMemoryCopyAggregate() {
     return avgThroughput;
 }
 
-// ============================================================
-// 6. Cryptographic Hash (SHA-256) (Increased workload: 20 MB data, 200 iterations)
-// ============================================================
+// ---------------------
+// Benchmark 6: Cryptographic Hash (SHA-256) (10 MB data, 100 iterations)
+// ---------------------
 double runCryptoHashTest() {
-    size_t dataSize = 10 * 1024 * 1024; // 10 MB
+    size_t dataSize = 10 * 1024 * 1024;
     size_t iterations = 100;
     std::vector<unsigned char> data(dataSize, 'x');
     std::vector<unsigned char> hash(32);
@@ -317,13 +315,12 @@ double runCryptoHashTest() {
         sha256::sha256(data.data(), dataSize, hash.data());
     }
     auto finish = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed = finish - start;
-    return elapsed.count(); // Lower is better.
+    return std::chrono::duration<double>(finish - start).count();
 }
 
 double runCryptoHashAggregate() {
     double totalTime = 0.0;
-    for (int i = 0; i < NUM_RUNS-5; i++) {
+    for (int i = 0; i < NUM_RUNS; i++) {
         totalTime += runCryptoHashTest();
     }
     double avgTime = totalTime / NUM_RUNS;
@@ -331,15 +328,14 @@ double runCryptoHashAggregate() {
     return avgTime;
 }
 
-// ============================================================
-// 7. Single-Core vs Multi-Core Summation (Increased workload: 200 million elements)
-// ============================================================
+// ---------------------
+// Benchmark 7: Multi-Core Summation (200 million elements)
+// ---------------------
 double runMultiCoreTest() {
-    size_t arraySize = 200000000; // 200 million doubles
+    size_t arraySize = 200000000;
     size_t numThreads = std::thread::hardware_concurrency();
-    if(numThreads == 0) numThreads = 4; // fallback
+    if (numThreads == 0) numThreads = 4;
 
-    // Create data.
     std::vector<double> data(arraySize);
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -347,7 +343,6 @@ double runMultiCoreTest() {
     for (auto &val : data)
         val = dis(gen);
 
-    // Multi-threaded summation.
     auto worker = [&data](size_t start, size_t end) -> double {
         return std::accumulate(data.begin() + start, data.begin() + end, 0.0);
     };
@@ -364,8 +359,7 @@ double runMultiCoreTest() {
     for (auto &f : futures)
         sumMulti += f.get();
     auto finishTime = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed = finishTime - startTime;
-    return elapsed.count(); // Lower is better.
+    return std::chrono::duration<double>(finishTime - startTime).count();
 }
 
 double runMultiCoreAggregate() {
@@ -378,11 +372,11 @@ double runMultiCoreAggregate() {
     return avgTime;
 }
 
-// ============================================================
-// 8. Image Processing (Blur Filter) (Increased workload: 4K resolution image)
-// ============================================================
+// ---------------------
+// Benchmark 8: Image Processing (Blur Filter on a 4K image)
+// ---------------------
 double runImageProcessingTest() {
-    int width = 3840, height = 2160; // 4K resolution
+    int width = 3840, height = 2160;
     std::vector<unsigned char> image(width * height);
     std::vector<unsigned char> output(image.size(), 0);
     std::random_device rd;
@@ -392,19 +386,19 @@ double runImageProcessingTest() {
         pixel = static_cast<unsigned char>(dis(gen));
 
     auto start = std::chrono::high_resolution_clock::now();
-    // Apply 3x3 box blur (ignoring edges)
     for (int y = 1; y < height - 1; y++) {
         for (int x = 1; x < width - 1; x++) {
             int sum = 0;
-            for (int dy = -1; dy <= 1; dy++)
-                for (int dx = -1; dx <= 1; dx++)
+            for (int dy = -1; dy <= 1; dy++) {
+                for (int dx = -1; dx <= 1; dx++) {
                     sum += image[(y + dy) * width + (x + dx)];
+                }
+            }
             output[y * width + x] = static_cast<unsigned char>(sum / 9);
         }
     }
     auto finish = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed = finish - start;
-    return elapsed.count(); // Lower is better.
+    return std::chrono::duration<double>(finish - start).count();
 }
 
 double runImageProcessingAggregate() {
@@ -417,9 +411,9 @@ double runImageProcessingAggregate() {
     return avgTime;
 }
 
-// ============================================================
-// 9. Physics Simulation (N-Body) (Increased workload: 500 particles, 20 iterations)
-// ============================================================
+// ---------------------
+// Benchmark 9: Physics Simulation (N-Body Simulation)
+// ---------------------
 struct Particle {
     double x, y;
     double vx, vy;
@@ -439,12 +433,11 @@ double runPhysicsSimulationTest() {
         p.vx = velDis(gen);
         p.vy = velDis(gen);
     }
-    const double G = 6.67430e-11; // gravitational constant (scaled)
-    const double dt = 0.01;       // time step
+    const double G = 6.67430e-11;
+    const double dt = 0.01;
 
     auto start = std::chrono::high_resolution_clock::now();
     for (int iter = 0; iter < iterations; iter++) {
-        // Compute forces.
         for (int i = 0; i < numParticles; i++) {
             double fx = 0.0, fy = 0.0;
             for (int j = 0; j < numParticles; j++) {
@@ -465,8 +458,7 @@ double runPhysicsSimulationTest() {
         }
     }
     auto finish = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed = finish - start;
-    return elapsed.count(); // Lower is better.
+    return std::chrono::duration<double>(finish - start).count();
 }
 
 double runPhysicsSimulationAggregate() {
@@ -479,10 +471,10 @@ double runPhysicsSimulationAggregate() {
     return avgTime;
 }
 
-// ============================================================
-// 10. Machine Learning (Logistic Regression)
-//     (Increased workload: 20000 samples, 100 features, 200 iterations)
-// ============================================================
+// ---------------------
+// Benchmark 10: Machine Learning (Logistic Regression)
+// (20000 samples, 1000 features, 250 iterations)
+// ---------------------
 double sigmoid(double z) {
     return 1.0 / (1.0 + std::exp(-z));
 }
@@ -493,7 +485,6 @@ double runMachineLearningTest() {
     int iterations = 250;
     double learningRate = 0.1;
 
-    // Generate synthetic data.
     std::vector<std::vector<double>> X(numSamples, std::vector<double>(numFeatures));
     std::vector<int> y(numSamples, 0);
     std::random_device rd;
@@ -506,11 +497,9 @@ double runMachineLearningTest() {
         }
         y[i] = labelDis(gen);
     }
-    // Initialize weights.
     std::vector<double> weights(numFeatures, 0.0);
 
     auto start = std::chrono::high_resolution_clock::now();
-    // Gradient descent.
     for (int iter = 0; iter < iterations; iter++) {
         std::vector<double> gradients(numFeatures, 0.0);
         for (size_t i = 0; i < numSamples; i++) {
@@ -526,8 +515,7 @@ double runMachineLearningTest() {
         }
     }
     auto finish = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed = finish - start;
-    return elapsed.count(); // Lower is better.
+    return std::chrono::duration<double>(finish - start).count();
 }
 
 double runMachineLearningAggregate() {
@@ -540,11 +528,44 @@ double runMachineLearningAggregate() {
     return avgTime;
 }
 
-// ============================================================
-// MAIN: Run all benchmarks concurrently and aggregate results.
-// ============================================================
+// ---------------------
+// Function to Save Results to a CSV-like File in the Current Directory
+// ---------------------
+void saveResultsToFile(
+    double overallScore,
+    const std::vector<std::pair<std::string, double>>& scoreEntries,
+    const std::string& filename
+) {
+    // Open the file for writing (will be created in the current directory)
+    std::ofstream outFile(filename, std::ios::out | std::ios::trunc);
+    if (!outFile.is_open()) {
+        std::cerr << "Error: Could not create results file at " << filename << "!" << std::endl;
+        return;
+    }
+
+    // Write CSV-like lines in the format: "Label",Value
+    outFile << "\"Matrix Multiplication:\"" << scoreEntries[0].second << "\n";
+    outFile << "\"Sorting\":" << scoreEntries[1].second << "\n";
+    outFile << "\"Prime Sieve\":" << scoreEntries[2].second << "\n";
+    outFile << "\"Floating-Point Operations\":" << scoreEntries[3].second << "\n";
+    outFile << "\"Memory Copy\":" << scoreEntries[4].second << "\n";
+    outFile << "\"Crypto Hash\":" << scoreEntries[5].second << "\n";
+    outFile << "\"Multi-Core Summation\":" << scoreEntries[6].second << "\n";
+    outFile << "\"Image Processing\":" << scoreEntries[7].second << "\n";
+    outFile << "\"Physics Simulation\":" << scoreEntries[8].second << "\n";
+    outFile << "\"Machine Learning\":" << scoreEntries[9].second << "\n";
+    outFile << "\"Overall Score\":" << overallScore << "\n";
+
+    outFile.flush();
+    outFile.close();
+    std::cout << "Results successfully saved to: " << filename << std::endl;
+}
+
+// ---------------------
+// MAIN: Run All Benchmarks, Compute Scores, and Save Results
+// ---------------------
 int main() {
-    std::cout << "Extended CPU Benchmark Suite (Parallel, Aggregated over "
+    std::cout << "Extended CPU Benchmark Suite (Parallel, Aggregated over " 
               << NUM_RUNS << " runs per test)" << "\n";
     std::cout << "-------------------------------------------------------------\n\n";
 
@@ -561,22 +582,18 @@ int main() {
     auto futML     = std::async(std::launch::async, runMachineLearningAggregate);
 
     // Get aggregated metrics.
-    double avgGFLOPS   = futMatrix.get();  // Higher is better.
-    double avgSortTime = futSort.get();    // Lower is better.
-    double avgPrimeTime= futPrime.get();   // Lower is better.
-    double avgFPTime   = futFP.get();      // Lower is better.
-    double avgMemcpyGB = futMemcpy.get();  // Higher is better.
-    double avgCryptoTime = futCrypto.get(); // Lower is better.
-    double avgMultiTime = futMulti.get();  // Lower is better.
-    double avgImageTime = futImage.get();  // Lower is better.
-    double avgPhysicsTime = futPhys.get(); // Lower is better.
-    double avgMLTime   = futML.get();      // Lower is better.
+    double avgGFLOPS    = futMatrix.get();   // Higher is better.
+    double avgSortTime  = futSort.get();     // Lower is better.
+    double avgPrimeTime = futPrime.get();    // Lower is better.
+    double avgFPTime    = futFP.get();       // Lower is better.
+    double avgMemcpyGB  = futMemcpy.get();     // Higher is better.
+    double avgCryptoTime= futCrypto.get();     // Lower is better.
+    double avgMultiTime = futMulti.get();      // Lower is better.
+    double avgImageTime = futImage.get();      // Lower is better.
+    double avgPhysicsTime = futPhys.get();     // Lower is better.
+    double avgMLTime    = futML.get();         // Lower is better.
 
-    // ============================================================
     // Compute normalized scores.
-    // For tests where lower time is better, we use: normalized = baseline / measured.
-    // For tests where higher throughput is better, we use: normalized = measured / baseline.
-    // ============================================================
     double scoreMatrix = avgGFLOPS / BASELINE_MATRIX_GFLOPS;
     double scoreSort   = BASELINE_SORT_TIME / avgSortTime;
     double scorePrime  = BASELINE_PRIME_TIME / avgPrimeTime;
@@ -588,7 +605,6 @@ int main() {
     double scorePhysics= BASELINE_PHYSICS_TIME / avgPhysicsTime;
     double scoreML     = BASELINE_ML_TIME / avgMLTime;
 
-    // Print normalized sub-scores.
     std::cout << "\nNormalized Scores (Reference = 1.0):\n";
     std::cout << "  Matrix Multiplication: " << scoreMatrix << "\n";
     std::cout << "  Sorting:               " << scoreSort   << "\n";
@@ -601,9 +617,7 @@ int main() {
     std::cout << "  Physics Simulation:    " << scorePhysics<< "\n";
     std::cout << "  Machine Learning:      " << scoreML     << "\n";
 
-    // ============================================================
-    // Compute overall score using the geometric mean of all normalized scores.
-    // ============================================================
+    // Compute overall score as the geometric mean.
     std::vector<double> scores = { scoreMatrix, scoreSort, scorePrime, scoreFP,
                                    scoreMemcpy, scoreCrypto, scoreMulti,
                                    scoreImage, scorePhysics, scoreML };
@@ -611,10 +625,29 @@ int main() {
     for (double s : scores)
         product *= s;
     double overallScore = std::pow(product, 1.0 / scores.size());
-
-    std::cout << std::fixed << std::setprecision(3);
+    
+    std::cout << std::fixed << std::setprecision(4);
     std::cout << "\nOverall CPU Benchmark Score: " << overallScore << "\n";
-    std::cout << "Press any key to exit";
-    std::cin.get();
+
+    // Assemble score entries for saving.
+    std::vector<std::pair<std::string, double>> scoreEntries = {
+        {"Matrix Multiplication", scoreMatrix},
+        {"Sorting", scoreSort},
+        {"Prime Sieve", scorePrime},
+        {"Floating-Point Operations", scoreFP},
+        {"Memory Copy", scoreMemcpy},
+        {"Crypto Hash", scoreCrypto},
+        {"Multi-Core Summation", scoreMulti},
+        {"Image Processing", scoreImage},
+        {"Physics Simulation", scorePhysics},
+        {"Machine Learning", scoreML}
+    };
+
+    // Save the results to a CSV-like file in the current directory.
+    saveResultsToFile(overallScore, scoreEntries, RESULTS_PATH);
+    std::cout << "\nResults saved to: " << RESULTS_PATH << "\n";
+
+    std::cout << "Press Enter to exit...";
+    //std::cin.get();
     return 0;
 }
